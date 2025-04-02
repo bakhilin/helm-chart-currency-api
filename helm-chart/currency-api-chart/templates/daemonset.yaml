@@ -1,0 +1,93 @@
+{{ $defaultPort := "8000" }}
+{{- $defaultImage := "bakhilin/currency-rest-api" }}
+{{- $defaultVaultAccount := "vault-account" }}
+{{- if .Values.image.repository }}
+{{- $defaultImage = tpl .Values.image.repository . }}
+{{- else }}
+{{- $defaultImage = printf "docker.io/%s" .Values.serviceName }}
+{{- end }}
+
+
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ .Values.serviceName }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "common.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "common.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "common.labels" . | nindent 8 }}
+    spec:
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .Values.initContainers }}
+      initContainers:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: redis
+          image: redis:7.0.9-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+          - containerPort: 6379
+            protocol: TCP
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          env:
+          - name: HOST
+            value: 0.0.0.0
+          - name: REDIS_HOST
+            value: localhost
+          - name: REDIS_PORT
+            value: "6379"
+        - name: {{ .Values.project }}-{{ required "Provide serviceName" .Values.serviceName }}
+          image: "{{ $defaultImage }}:{{ required "Provide image.tag" .Values.image.tag }}"
+          imagePullPolicy: {{ default "Always" .Values.image.pullPolicy }}
+          resources: {{- include "common.resources.preset" (dict "type" .Values.resourcePreset) | nindent 12 }}
+
+          {{ if .Values.ingress.enabled -}}
+          ports:
+            - name: {{ $defaultPort }}-tcp
+              containerPort: {{ $defaultPort }}
+          {{- end }}
+
+          {{- if .Values.env }}
+          env:
+            {{- with .Values.env }}
+              {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+
+          {{- if .Values.envFrom }}
+          envFrom:
+            {{- with .Values.envFrom }}
+              {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+
+          {{- if .Values.probes }}
+          {{- include "common.probes" . | nindent 12 }}
+          {{- end }}
+      dnsPolicy: ClusterFirst
+      dnsConfig:
+        nameservers:
+          - 8.8.8.8
+          - 77.88.8.8
