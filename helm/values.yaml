@@ -77,3 +77,14 @@ service:
   type: ClusterIP
   port: 8000
   targetPort: 8000
+
+
+probes:
+  liveness:
+    httpGet:
+      path: "/info"
+      port: 8000
+  readiness:
+    httpGet:
+      path: "/info"
+      port: 8000

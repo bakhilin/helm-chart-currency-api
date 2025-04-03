@@ -7,7 +7,6 @@
 {{- $defaultImage = printf "docker.io/%s" .Values.serviceName }}
 {{- end }}
 
-
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -62,29 +61,42 @@ spec:
           image: "{{ $defaultImage }}:{{ required "Provide image.tag" .Values.image.tag }}"
           imagePullPolicy: {{ default "Always" .Values.image.pullPolicy }}
           resources: {{- include "common.resources.preset" (dict "type" .Values.resourcePreset) | nindent 12 }}
-
           {{ if .Values.ingress.enabled -}}
           ports:
             - name: {{ $defaultPort }}-tcp
               containerPort: {{ $defaultPort }}
           {{- end }}
-
           {{- if .Values.env }}
           env:
             {{- with .Values.env }}
               {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- end }}
-
           {{- if .Values.envFrom }}
           envFrom:
             {{- with .Values.envFrom }}
               {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- end }}
-
           {{- if .Values.probes }}
-          {{- include "common.probes" . | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /info
+              port: {{ $defaultPort }}
+            initialDelaySeconds: 10
+            timeoutSeconds: 1
+            periodSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+          readinessProbe:
+            httpGet:
+              path: /info
+              port: {{ $defaultPort }}
+            initialDelaySeconds: 10
+            timeoutSeconds: 1
+            periodSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
           {{- end }}
       dnsPolicy: ClusterFirst
       dnsConfig:
